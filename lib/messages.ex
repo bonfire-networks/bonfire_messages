@@ -111,7 +111,7 @@ defmodule Bonfire.Messages do
     # |> debug("attrs")
     |> Message.changeset(%Message{}, ...)
     # before  since we only want to tag `to` users, not mentions
-    |> Tags.cast(attrs, creator, opts)
+    |> Tags.maybe_cast(attrs, creator, opts)
     # process text (must be done before Objects.cast)
     |> Bonfire.Social.PostContents.cast(attrs, creator, "message", opts)
     |> Objects.cast_creator_caretaker(creator)
