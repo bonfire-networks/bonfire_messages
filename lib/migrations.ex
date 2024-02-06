@@ -19,7 +19,7 @@ defmodule Bonfire.Messages.Migrations do
     end
   end
 
-  defmacro migrate_social() do
+  defmacro migrate_messages() do
     quote do
       if Ecto.Migration.direction() == :up,
         do: unquote(ms(:up)),
@@ -27,5 +27,5 @@ defmodule Bonfire.Messages.Migrations do
     end
   end
 
-  defmacro migrate_social(dir), do: ms(dir)
+  defmacro migrate_messages(dir), do: ms(dir)
 end
