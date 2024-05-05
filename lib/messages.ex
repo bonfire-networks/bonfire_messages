@@ -1,9 +1,11 @@
 defmodule Bonfire.Messages do
+  @moduledoc "./README.md" |> File.stream!() |> Enum.drop(1) |> Enum.join()
+
   use Arrows
   use Bonfire.Common.Repo
   use Bonfire.Common.Utils
   import Untangle
-  alias Bonfire.Social.Integration
+  alias Bonfire.Social
 
   alias Bonfire.Data.Social.Message
   # alias Bonfire.Data.Social.PostContent
@@ -72,7 +74,7 @@ defmodule Bonfire.Messages do
         # debug(message)
         LivePush.notify_of_message(creator, :message, message, to)
 
-        Integration.maybe_federate_and_gift_wrap_activity(creator, message)
+        Social.maybe_federate_and_gift_wrap_activity(creator, message)
       end
     else
       error("Could not find recipient.")
@@ -229,7 +231,7 @@ defmodule Bonfire.Messages do
     |> debug("post preloads & permissions")
     # |> repo().many() # return all items
     # return a page of items (reverse chronological) + pagination metadata
-    |> Integration.many(opts[:paginate], opts)
+    |> Social.many(opts[:paginate], opts)
 
     # |> debug("result")
   end
