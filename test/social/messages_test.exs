@@ -1,5 +1,5 @@
 defmodule Bonfire.Messages.MessagesTest do
-  use Bonfire.Social.DataCase, async: true
+  use Bonfire.Messages.DataCase, async: true
 
   alias Bonfire.Messages
   alias Bonfire.Social.Feeds
