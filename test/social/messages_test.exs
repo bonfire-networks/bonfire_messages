@@ -10,6 +10,7 @@ defmodule Bonfire.Messages.MessagesTest do
 
   @plain_body "hey receiver, you have an epic text message"
   @html_body "<p>hey receiver, you have an epic html message</p>"
+
   test "can message a user" do
     sender = Fake.fake_user!()
     receiver = Fake.fake_user!()
