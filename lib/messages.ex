@@ -25,7 +25,6 @@ defmodule Bonfire.Messages do
   alias Bonfire.Social.Tags
   alias Bonfire.Boundaries
   # alias Bzonfire.Boundaries.Verbs
-  alias Bonfire.Social.LivePush
 
   @behaviour Bonfire.Common.ContextModule
   def schema_module, do: Message
@@ -72,7 +71,12 @@ defmodule Bonfire.Messages do
 
       with {:ok, message} <- create(creator, attrs, opts) do
         # debug(message)
-        LivePush.notify_of_message(creator, :message, message, to)
+        maybe_apply(Bonfire.UI.Social.LivePush, :notify_of_message, [
+          creator,
+          :message,
+          message,
+          to
+        ])
 
         Social.maybe_federate_and_gift_wrap_activity(creator, message)
       end
