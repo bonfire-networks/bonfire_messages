@@ -33,21 +33,33 @@ defmodule Bonfire.Messages do
   def federation_module,
     do: [{"Create", "ChatMessage"}, {"Delete", "ChatMessage"}]
 
+  @doc """
+  Save a new message as a draft (without sending it).
+
+  ## Examples
+
+      iex> Bonfire.Messages.draft(creator, attrs)
+      {:ok, %Message{}}
+  """
   def draft(creator, attrs) do
-    # TODO: create as private
-    with {:ok, message} <- create(creator, attrs, "message") do
+    with {:ok, message} <- create(creator, attrs, boundary: "message") do
       {:ok, message}
     end
   end
 
   @doc """
-  TODO: check boundaries, right now anyone can message anyone :/
+  Sends a message to the specified recipients.
+
+  ## Examples
+
+      iex> Bonfire.Messages.send(me, %{post_content: %{html_body: "test message"}}, to_user_id)
   """
   def send(creator_id, attrs, to \\ nil)
 
   def send(%{id: _creator_id} = creator, attrs, to) do
     opts = [current_user: creator]
 
+    #   TODO: check boundaries, right now anyone can message anyone :/
     to =
       (to || Utils.e(attrs, :to_circles, nil))
       |> debug("tos")
@@ -132,6 +144,14 @@ defmodule Bonfire.Messages do
     # |> info()
   end
 
+  @doc """
+  Attempt to read a message by its ID.
+
+  ## Examples
+
+      iex> Bonfire.Messages.read(message_id, current_user: me)
+      %Message{}
+  """
   def read(message_id, opts) when is_binary(message_id) do
     query_filter(Message, id: message_id)
     |> Activities.read(opts ++ [preload: [:posts_with_thread]])
@@ -139,7 +159,14 @@ defmodule Bonfire.Messages do
     |> repo().maybe_preload(activity: [tags: [:character, profile: :icon]])
   end
 
-  @doc "List posts created by the user and which are in their outbox, which are not replies"
+  @doc """
+  Lists messages created by the user, excluding replies.
+
+  ## Examples
+
+      iex> Bonfire.Messages.list(current_user)
+      [%Message{}]
+  """
   def list(current_user, with_user \\ nil, opts \\ [])
 
   def list(%{id: current_user_id} = current_user, with_user, opts)
@@ -297,6 +324,13 @@ defmodule Bonfire.Messages do
     query
   end
 
+  @doc """
+  Publishes an activity to the ActivityPub.
+
+  ## Examples
+
+      iex> Bonfire.Messages.ap_publish_activity(subject, verb, message)
+  """
   def ap_publish_activity(subject, verb, message) do
     message = repo().preload(message, [:replied, activity: [:tags]])
 
@@ -351,6 +385,13 @@ defmodule Bonfire.Messages do
     if verb == :edit, do: ActivityPub.update(params), else: ActivityPub.create(params)
   end
 
+  @doc """
+  Receives an activity from ActivityPub.
+
+  ## Examples
+
+      iex> Bonfire.Messages.ap_receive_activity(creator, activity, object)
+  """
   def ap_receive_activity(creator, activity, object) do
     with {:ok, messaged} <- Bonfire.Me.Users.by_ap_id(hd(activity.data["to"])) do
       attrs = %{
