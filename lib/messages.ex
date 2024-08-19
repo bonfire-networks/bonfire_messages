@@ -41,8 +41,8 @@ defmodule Bonfire.Messages do
       iex> Bonfire.Messages.draft(creator, attrs)
       {:ok, %Message{}}
   """
-  def draft(creator, attrs) do
-    with {:ok, message} <- create(creator, attrs, boundary: "message") do
+  def draft(context, attrs) do
+    with {:ok, message} <- create(attrs, to_options(context) ++ [boundary: "message"]) do
       {:ok, message}
     end
   end
@@ -54,10 +54,10 @@ defmodule Bonfire.Messages do
 
       iex> Bonfire.Messages.send(me, %{post_content: %{html_body: "test message"}}, to_user_id)
   """
-  def send(creator_id, attrs, to \\ nil)
+  def send(sender_or_context, attrs, to \\ nil)
 
-  def send(%{id: _creator_id} = creator, attrs, to) do
-    opts = [current_user: creator]
+  def send(context, attrs, to) do
+    creator = current_user_required!(context)
 
     #   TODO: check boundaries, right now anyone can message anyone :/
     to =
@@ -65,7 +65,7 @@ defmodule Bonfire.Messages do
       |> debug("tos")
       |> clean_tos()
       |> debug("clean_tos")
-      |> Boundaries.load_pointers(opts ++ [verb: :message])
+      |> Boundaries.load_pointers(current_user: creator, verb: :message)
       |> repo().maybe_preload(:character)
 
     # TODO: if not allowed to message, request to message?
@@ -74,14 +74,18 @@ defmodule Bonfire.Messages do
     if is_list(to) and to != [] do
       attrs = Map.put(attrs, :tags, to)
       # |> debug("message attrs")
-      opts = [
-        boundary: "message",
-        verbs_to_grant: Config.get([:verbs_to_grant, :message]),
-        to_circles: to || [],
-        to_feeds: [inbox: to]
-      ]
+      opts =
+        to_options(context) ++
+          [
+            boundary: "message",
+            verbs_to_grant: Config.get([:verbs_to_grant, :message]),
+            to_circles: to || [],
+            to_feeds: [inbox: to]
+          ]
 
-      with {:ok, message} <- create(creator, attrs, opts) do
+      # TODO: refactor to use Epics  
+
+      with {:ok, message} <- create(attrs, opts) do
         # debug(message)
         maybe_apply(Bonfire.UI.Social.LivePush, :notify_of_message, [
           creator,
@@ -97,10 +101,10 @@ defmodule Bonfire.Messages do
     end
   end
 
-  def send(creator_id, attrs, to) when is_binary(creator_id) do
-    Bonfire.Me.Users.by_id(creator_id)
-    ~> send(attrs, to)
-  end
+  # def send(creator_id, attrs, to) when is_binary(creator_id) do
+  #   Bonfire.Me.Users.by_id(creator_id)
+  #   ~> send(attrs, to)
+  # end
 
   defp clean_tos(tos) when is_binary(tos), do: String.split(tos, ",") |> clean_tos()
 
@@ -117,14 +121,16 @@ defmodule Bonfire.Messages do
 
   defp clean_tos(tos), do: tos |> filter_empty(nil)
 
-  defp create(%{id: _creator_id} = creator, attrs, opts) do
+  defp create(attrs, opts) do
     # we attempt to avoid entering the transaction as long as possible.
-    changeset = changeset(:create, attrs, creator, opts)
+    changeset = changeset(:create, attrs, opts)
     # |> info
     repo().transact_with(fn -> repo().insert(changeset) end)
   end
 
-  def changeset(:create, attrs, creator, opts \\ []) do
+  def changeset(:create, attrs, opts \\ []) do
+    creator = current_user_required!(opts)
+
     attrs
     # |> debug("attrs")
     |> Message.changeset(%Message{}, ...)
@@ -132,6 +138,7 @@ defmodule Bonfire.Messages do
     |> Tags.maybe_cast(attrs, creator, opts)
     # process text (must be done before Objects.cast)
     |> Bonfire.Social.PostContents.cast(attrs, creator, "message", opts)
+    |> maybe_spam_check(attrs, opts)
     |> Objects.cast_creator_caretaker(creator)
     # record replies & threads. preloads data that will be checked by `Acls`
     |> Threads.cast(attrs, creator, opts)
@@ -143,6 +150,12 @@ defmodule Bonfire.Messages do
 
     # |> info()
   end
+
+  def maybe_spam_check(changeset, attrs, context),
+    do:
+      maybe_apply(Bonfire.Social.Acts.AntiSpam, :check!, [changeset, attrs, context],
+        fallback_return: nil
+      ) || changeset
 
   @doc """
   Attempt to read a message by its ID.
