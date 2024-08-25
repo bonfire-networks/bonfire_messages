@@ -61,7 +61,7 @@ defmodule Bonfire.Messages do
 
     #   TODO: check boundaries, right now anyone can message anyone :/
     to =
-      (to || Utils.e(attrs, :to_circles, nil))
+      (to || e(attrs, :to_circles, nil))
       |> debug("tos")
       |> clean_tos()
       |> debug("clean_tos")
