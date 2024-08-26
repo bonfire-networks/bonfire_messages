@@ -2,6 +2,7 @@ defmodule Bonfire.Messages.MessagesTest do
   use Bonfire.Messages.DataCase, async: true
 
   alias Bonfire.Messages
+  alias Bonfire.Social.Objects
   alias Bonfire.Social.Feeds
   alias Bonfire.Social.FeedActivities
 
@@ -63,6 +64,20 @@ defmodule Bonfire.Messages.MessagesTest do
     assert List.first(feed).id == message.id
   end
 
+  test "can read a message I send, or sent to me" do
+    sender = Fake.fake_user!()
+    receiver = Fake.fake_user!()
+
+    attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
+
+    assert {:ok, message} = Messages.send(sender, attrs)
+
+    assert {:ok, _} = Messages.read(message.id, current_user: sender)
+    assert {:ok, _} = Messages.read(message.id, current_user: receiver)
+    assert {:ok, _} = Objects.read(message.id, current_user: sender)
+    assert {:ok, _} = Objects.read(message.id, current_user: receiver)
+  end
+
   test "random person CANNOT list messages I sent to another person" do
     sender = Fake.fake_user!()
     receiver = Fake.fake_user!()
@@ -75,6 +90,19 @@ defmodule Bonfire.Messages.MessagesTest do
     refute match?(%{edges: [_]}, Messages.list(other))
     refute match?(%{edges: [_]}, Messages.list(sender, other))
     refute match?(%{edges: [_]}, Messages.list(other, sender))
+  end
+
+  test "random person CANNOT read a message I sent to another person" do
+    sender = Fake.fake_user!()
+    receiver = Fake.fake_user!()
+    other = Fake.fake_user!()
+
+    attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
+
+    assert {:ok, message} = Messages.send(sender, attrs)
+
+    assert {:error, _} = Messages.read(message.id, current_user: other)
+    assert {:error, _} = Objects.read(message.id, current_user: other)
   end
 
   # because we filter messages out of feeds (and use Messages.list instead)
