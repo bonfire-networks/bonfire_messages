@@ -37,7 +37,7 @@ defmodule Bonfire.Messages.Fake do
         post_attrs:
           attrs ||
             %{
-              reply_to_id: Types.ulid(reply_to),
+              reply_to_id: Types.uid(reply_to),
               post_content: %{
                 summary: "summary",
                 name: "name",

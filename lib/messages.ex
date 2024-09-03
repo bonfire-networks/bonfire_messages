@@ -114,8 +114,8 @@ defmodule Bonfire.Messages do
     do:
       tos
       |> Enum.map(fn
-        {id, name} -> ulid(id) || ulid(name)
-        other -> ulid(other)
+        {id, name} -> uid(id) || uid(name)
+        other -> uid(other)
       end)
       |> filter_empty(nil)
 
@@ -189,7 +189,7 @@ defmodule Bonfire.Messages do
 
     opts = list_options(opts)
 
-    with_user_id = Types.ulid(with_user)
+    with_user_id = Types.uid(with_user)
 
     if with_user_id && with_user_id != current_user_id do
       # |> debug("list message filters")
@@ -365,7 +365,7 @@ defmodule Bonfire.Messages do
 
     to = Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
 
-    context = Threads.ap_prepare(Threads.ap_prepare(ulid(e(message, :replied, :thread_id, nil))))
+    context = Threads.ap_prepare(Threads.ap_prepare(uid(e(message, :replied, :thread_id, nil))))
 
     object = %{
       # "ChatMessage", # TODO: use ChatMessage with peers that support it?
@@ -376,7 +376,7 @@ defmodule Bonfire.Messages do
       "content" => Text.maybe_markdown_to_html(e(message, :post_content, :html_body, nil)),
       "to" => to,
       "context" => context,
-      "inReplyTo" => Threads.ap_prepare(ulid(e(message, :replied, :reply_to_id, nil))),
+      "inReplyTo" => Threads.ap_prepare(uid(e(message, :replied, :reply_to_id, nil))),
       "tag" =>
         Enum.map(recipients, fn actor ->
           %{
@@ -392,7 +392,7 @@ defmodule Bonfire.Messages do
       context: context,
       object: object,
       to: to,
-      pointer: ulid(message)
+      pointer: uid(message)
     }
 
     if verb == :edit, do: ActivityPub.update(params), else: ActivityPub.create(params)
