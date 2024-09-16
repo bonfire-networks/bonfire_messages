@@ -87,7 +87,7 @@ defmodule Bonfire.Messages do
 
       with {:ok, message} <- create(attrs, opts) do
         # debug(message)
-        maybe_apply(Bonfire.UI.Social.LivePush, :notify_of_message, [
+        maybe_apply(Bonfire.Social.LivePush, :notify_of_message, [
           creator,
           :message,
           message,
