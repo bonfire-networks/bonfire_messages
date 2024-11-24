@@ -94,10 +94,39 @@ defmodule Bonfire.Messages do
           to
         ])
 
+        maybe_index_message(message)
+
         Social.maybe_federate_and_gift_wrap_activity(creator, message)
       end
     else
       error("Could not find recipient.")
+    end
+  end
+
+  def maybe_index_message(object) when is_map(object) do
+    # TODO: replace with use Search Epic
+    # |> debug
+    # defp config(), do: Application.get_env(:bonfire_me, Users)
+    if module = Extend.maybe_module(Bonfire.Posts) do
+      object
+      |> module.indexing_object_format()
+      |> Map.put("index_type", Types.module_to_str(Message))
+      |> maybe_index()
+    end
+  end
+
+  defp maybe_index(object) do
+    # TODO: replace with use Search Epic
+    if module =
+         Extend.maybe_module(
+           Bonfire.Search.Indexer,
+           current_user:
+             e(object, :creator, nil) ||
+               e(object, :created, :creator_id, nil)
+         ) do
+      module.maybe_index_object(object, :private)
+    else
+      :ok
     end
   end
 
