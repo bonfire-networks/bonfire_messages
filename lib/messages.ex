@@ -124,7 +124,7 @@ defmodule Bonfire.Messages do
              e(object, :creator, nil) ||
                e(object, :created, :creator_id, nil)
          ) do
-      module.maybe_index_object(object, :private)
+      module.maybe_index_object(object, :closed)
     else
       :ok
     end
