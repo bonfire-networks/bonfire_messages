@@ -3,7 +3,7 @@ defmodule Bonfire.Messages.Integration do
   alias Bonfire.Common.Config
   use Bonfire.Common.Utils
   # alias Bonfire.Data.Social.Follow
-  import Untangle
+  # import Untangle
 
   declare_extension("Messages",
     icon: "carbon:email",

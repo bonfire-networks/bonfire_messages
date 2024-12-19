@@ -21,7 +21,7 @@ defmodule Bonfire.Messages do
   # alias Ecto.Changeset
   # import Bonfire.Boundaries.Queries
   alias Bonfire.Social.Threads
-  alias Bonfire.Social.PostContents
+  # alias Bonfire.Social.PostContents
   alias Bonfire.Social.Tags
   alias Bonfire.Boundaries
   # alias Bzonfire.Boundaries.Verbs

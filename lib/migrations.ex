@@ -1,7 +1,7 @@
 defmodule Bonfire.Messages.Migrations do
   @moduledoc false
   use Ecto.Migration
-  import Needle.Migration
+  # import Needle.Migration
 
   def ms(:up) do
     quote do

@@ -3,7 +3,6 @@ defmodule Bonfire.Messages.Fake do
   # import Bonfire.Me.Fake
   # alias Bonfire.Common.Utils
   alias Bonfire.Posts
-  alias Bonfire.Social.Graph.Follows
   alias Bonfire.Common
   alias Common.Types
 
