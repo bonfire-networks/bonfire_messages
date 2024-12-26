@@ -114,7 +114,7 @@ defmodule Bonfire.Messages.MessagesTest do
 
     assert {:ok, message} = Messages.send(sender, attrs)
 
-    assert FeedActivities.feed_contains?(:inbox, message, current_user: receiver)
+    assert Bonfire.Social.FeedLoader.feed_contains?(:inbox, message, current_user: receiver)
   end
 
   test "messaging someone does NOT appear in my own inbox feed" do
@@ -124,7 +124,7 @@ defmodule Bonfire.Messages.MessagesTest do
 
     assert {:ok, message} = Messages.send(sender, attrs)
 
-    refute FeedActivities.feed_contains?(:inbox, message, current_user: sender)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:inbox, message, current_user: sender)
   end
 
   test "messaging someone else does NOT appear in a 3rd party's inbox" do
@@ -134,7 +134,7 @@ defmodule Bonfire.Messages.MessagesTest do
     assert {:ok, message} = Messages.send(sender, attrs)
     third = Fake.fake_user!()
 
-    refute FeedActivities.feed_contains?(:inbox, message, current_user: third)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:inbox, message, current_user: third)
   end
 
   test "messaging someone does NOT appear in their home feed" do
@@ -142,7 +142,7 @@ defmodule Bonfire.Messages.MessagesTest do
     receiver = Fake.fake_user!()
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
-    refute FeedActivities.feed_contains?(:my, message, current_user: receiver)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:my, message, current_user: receiver)
   end
 
   test "messaging someone does NOT appear in their instance feed" do
@@ -151,7 +151,7 @@ defmodule Bonfire.Messages.MessagesTest do
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
 
-    refute FeedActivities.feed_contains?(:local, message, current_user: receiver)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:local, message, current_user: receiver)
   end
 
   test "messaging someone does NOT appear in my instance feed" do
@@ -160,7 +160,7 @@ defmodule Bonfire.Messages.MessagesTest do
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
 
-    refute FeedActivities.feed_contains?(:local, message, current_user: sender)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:local, message, current_user: sender)
   end
 
   test "messaging someone does NOT appear in a 3rd party's instance feed" do
@@ -170,7 +170,7 @@ defmodule Bonfire.Messages.MessagesTest do
     assert {:ok, message} = Messages.send(sender, attrs)
     third = Fake.fake_user!()
 
-    refute FeedActivities.feed_contains?(:local, message, current_user: third)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:local, message, current_user: third)
   end
 
   test "messaging someone does NOT appear in the public instance feed" do
@@ -178,6 +178,6 @@ defmodule Bonfire.Messages.MessagesTest do
     receiver = Fake.fake_user!()
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
-    refute FeedActivities.feed_contains?(:local, message)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:local, message)
   end
 end
