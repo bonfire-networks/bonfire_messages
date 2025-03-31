@@ -105,36 +105,32 @@ defmodule Bonfire.Messages.MessagesTest do
     assert {:error, _} = Objects.read(message.id, current_user: other)
   end
 
-  # because we filter messages out of feeds (and use Messages.list instead)
-  @tag :skip
-  test "messages addressed to me appear in my inbox feed" do
+  # we don't show messages in notifications?
+  @tag :todo
+  test "messaging someone appears in their notifications but does NOT appear in my own notifications" do
     sender = Fake.fake_user!()
     receiver = Fake.fake_user!()
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
 
     assert {:ok, message} = Messages.send(sender, attrs)
 
-    assert Bonfire.Social.FeedLoader.feed_contains?(:inbox, message, current_user: receiver)
+    assert Bonfire.Social.FeedLoader.feed_contains?(:notifications, message,
+             current_user: receiver
+           )
+
+    refute Bonfire.Social.FeedLoader.feed_contains?(:notifications, message, current_user: sender)
   end
 
-  test "messaging someone does NOT appear in my own inbox feed" do
-    sender = Fake.fake_user!()
-    receiver = Fake.fake_user!()
-    attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
-
-    assert {:ok, message} = Messages.send(sender, attrs)
-
-    refute Bonfire.Social.FeedLoader.feed_contains?(:inbox, message, current_user: sender)
-  end
-
-  test "messaging someone else does NOT appear in a 3rd party's inbox" do
+  # we don't show messages in notifications?
+  @tag :todo
+  test "messaging someone else does NOT appear in a 3rd party's notifications" do
     sender = Fake.fake_user!()
     receiver = Fake.fake_user!()
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
     third = Fake.fake_user!()
 
-    refute Bonfire.Social.FeedLoader.feed_contains?(:inbox, message, current_user: third)
+    refute Bonfire.Social.FeedLoader.feed_contains?(:notifications, message, current_user: third)
   end
 
   test "messaging someone does NOT appear in their home feed" do
