@@ -189,7 +189,10 @@ defmodule Bonfire.Messages do
   end
 
   @doc """
-  Lists messages created by the user, excluding replies.
+  Lists messages sent by the user or sent to them, excluding replies.
+
+  ## Options
+  - `latest_in_threads` (boolean): return only the last reply in each thread (or the first message if the thread only has one)
 
   ## Examples
 
