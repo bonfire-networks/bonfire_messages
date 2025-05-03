@@ -1,6 +1,6 @@
 defmodule Bonfire.Messages.Integration do
   use Arrows
-  alias Bonfire.Common.Config
+  use Bonfire.Common.Config
   use Bonfire.Common.Utils
   # alias Bonfire.Data.Social.Follow
   # import Untangle
