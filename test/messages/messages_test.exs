@@ -40,7 +40,8 @@ defmodule Bonfire.Messages.MessagesTest do
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
     assert %{edges: feed} = Messages.list(sender, receiver)
-    assert List.first(feed).id == message.id
+    assert m = List.first(feed)
+    assert m.id == message.id
   end
 
   test "can list messages sent to me" do
@@ -49,7 +50,8 @@ defmodule Bonfire.Messages.MessagesTest do
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
     assert %{edges: feed} = Messages.list(receiver)
-    assert List.first(feed).id == message.id
+    assert m = List.first(feed)
+    assert m.id == message.id
   end
 
   test "can list messages sent to me by a specific person" do
@@ -61,7 +63,8 @@ defmodule Bonfire.Messages.MessagesTest do
     assert {:ok, message} = Messages.send(sender, attrs)
 
     assert %{edges: feed} = Messages.list(receiver, sender)
-    assert List.first(feed).id == message.id
+    assert m = List.first(feed)
+    assert m.id == message.id
   end
 
   test "can read a message I send, or sent to me" do
