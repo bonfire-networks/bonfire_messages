@@ -426,6 +426,7 @@ defmodule Bonfire.Messages do
   """
   def ap_receive_activity(creator, activity, object) do
     with {:ok, messaged} <- Bonfire.Me.Users.by_ap_id(hd(activity.data["to"])) do
+      # TODO: refactor to use Bonfire.Social.PostContents.ap_receive_attrs_prepare
       attrs = %{
         to_circles: [messaged.id],
         post_content: %{html_body: object.data["content"]}
