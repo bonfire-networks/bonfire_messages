@@ -183,9 +183,11 @@ defmodule Bonfire.Messages do
   """
   def read(message_id, opts) when is_binary(message_id) do
     query_filter(Message, id: message_id)
-    |> Activities.read(opts ++ [preload: [:posts_with_thread]])
+    |> Activities.read(opts)
     # load audience list
-    |> repo().maybe_preload(activity: [tags: [:character, profile: :icon]])
+    # ~> repo().maybe_preload(activity: [tags: [:character, profile: :icon]])
+    ~> Objects.maybe_preload_activity_object(opts)
+    ~> to_ok()
   end
 
   @doc """
