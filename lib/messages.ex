@@ -6,23 +6,23 @@ defmodule Bonfire.Messages do
   use Bonfire.Common.Utils
   import Untangle
   alias Bonfire.Social
+  # alias Ecto.Changeset
 
   alias Bonfire.Data.Social.Message
   # alias Bonfire.Data.Social.PostContent
   # alias Bonfire.Data.Social.Replied
 
+  # alias Bonfire.Me.Characters
+
   alias Bonfire.Social.Activities
   alias Bonfire.Social.FeedActivities
-  # alias Bonfire.Social.Feeds
+  alias Bonfire.Social.PostContents
   alias Bonfire.Social.Objects
-
-  # alias Bonfire.Me.Characters
-  # alias Bonfire.Boundaries.Verbs
-  # alias Ecto.Changeset
-  # import Bonfire.Boundaries.Queries
   alias Bonfire.Social.Threads
-  # alias Bonfire.Social.PostContents
   alias Bonfire.Social.Tags
+
+  # alias Bonfire.Boundaries.Verbs
+  # import Bonfire.Boundaries.Queries
   alias Bonfire.Boundaries
   # alias Bzonfire.Boundaries.Verbs
 
@@ -153,7 +153,7 @@ defmodule Bonfire.Messages do
     # before  since we only want to tag `to` users, not mentions
     |> Tags.maybe_cast(attrs, creator, opts)
     # process text (must be done before Objects.cast)
-    |> Bonfire.Social.PostContents.cast(attrs, creator, "message", opts)
+    |> PostContents.cast(attrs, creator, "message", opts)
     |> maybe_spam_check(attrs, opts)
     |> Objects.cast_creator_caretaker(creator)
     # record replies & threads. preloads data that will be checked by `Acls`
@@ -366,7 +366,21 @@ defmodule Bonfire.Messages do
       iex> Bonfire.Messages.ap_publish_activity(subject, verb, message)
   """
   def ap_publish_activity(subject, verb, message) do
-    message = repo().preload(message, [:replied, activity: [:tags]])
+    message =
+      message
+      |> repo().maybe_preload([
+        :post_content,
+        :media,
+        :created,
+        :sensitive,
+        # recipients
+        :tags,
+        replied: [
+          # thread: [:created], reply_to: [:created]
+        ]
+      ])
+      # |> Activities.object_preload_create_activity()
+      |> debug("message to federate")
 
     {:ok, actor} = ActivityPub.Actor.get_cached(pointer: subject)
 
@@ -376,7 +390,8 @@ defmodule Bonfire.Messages do
     recipient_types = [Bonfire.Data.Identity.User.__pointers__(:table_id)]
 
     recipients =
-      Enum.filter(message.activity.tags, fn tag ->
+      Enum.filter(e(message, :tags, []) |> flood("taggs"), fn tag ->
+        # FIXME: this means that any tagged user will receive the message, which may be a problem if the UI allows @ mentioning or otherwise tagging users for messages without the intention of sending them a message
         tag.table_id in recipient_types
       end)
       |> Enum.map(fn pointer ->
@@ -384,7 +399,9 @@ defmodule Bonfire.Messages do
       end)
       |> filter_empty([])
 
-    to = Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
+    to =
+      Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
+      |> flood("tooo")
 
     context = e(message, :replied, :thread_id, nil)
     context = if context, do: Threads.ap_prepare(context)
