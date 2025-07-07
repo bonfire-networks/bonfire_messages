@@ -386,27 +386,43 @@ defmodule Bonfire.Messages do
 
     to = Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
 
-    context = Threads.ap_prepare(Threads.ap_prepare(uid(e(message, :replied, :thread_id, nil))))
+    context = e(message, :replied, :thread_id, nil)
+    context = if context, do: Threads.ap_prepare(context)
 
-    object = %{
-      # "ChatMessage", # TODO: use ChatMessage with peers that support it?
-      "type" => "Note",
-      "actor" => actor.ap_id,
-      "name" => e(message, :post_content, :name, nil),
-      "summary" => e(message, :post_content, :summary, nil),
-      "content" => Text.maybe_markdown_to_html(e(message, :post_content, :html_body, nil)),
-      "to" => to,
-      "context" => context,
-      "inReplyTo" => Threads.ap_prepare(uid(e(message, :replied, :reply_to_id, nil))),
-      "tag" =>
-        Enum.map(recipients, fn actor ->
-          %{
-            "href" => actor.ap_id,
-            "name" => actor.username,
-            "type" => "Mention"
-          }
-        end)
-    }
+    reply_to = e(message, :replied, :reply_to_id, nil)
+    reply_to = if reply_to, do: Threads.ap_prepare(reply_to)
+
+    # object = %{
+    #   # "ChatMessage", # TODO: use ChatMessage with peers that support it?
+    #   "type" => "Note",
+    #   "actor" => actor.ap_id,
+    #   "name" => e(message, :post_content, :name, nil),
+    #   "summary" => e(message, :post_content, :summary, nil),
+    #   "content" => Text.maybe_markdown_to_html(e(message, :post_content, :html_body, nil)),
+    #   "to" => to,
+    #   "context" => context,
+    #   "inReplyTo" => Threads.ap_prepare(uid(e(message, :replied, :reply_to_id, nil))),
+    #   "tag" =>
+    #     Enum.map(recipients, fn actor ->
+    #       %{
+    #         "href" => actor.ap_id,
+    #         "name" => actor.username,
+    #         "type" => "Mention"
+    #       }
+    #     end)
+    # }
+
+    object =
+      PostContents.ap_prepare_object_note(
+        subject,
+        verb,
+        message,
+        actor,
+        recipients,
+        context,
+        reply_to
+      )
+      |> Map.put("to", to)
 
     params = %{
       actor: actor,
