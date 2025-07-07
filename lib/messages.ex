@@ -390,7 +390,7 @@ defmodule Bonfire.Messages do
     recipient_types = [Bonfire.Data.Identity.User.__pointers__(:table_id)]
 
     recipients =
-      Enum.filter(e(message, :tags, []) |> flood("taggs"), fn tag ->
+      Enum.filter(e(message, :tags, []) |> debug("taggs"), fn tag ->
         # FIXME: this means that any tagged user will receive the message, which may be a problem if the UI allows @ mentioning or otherwise tagging users for messages without the intention of sending them a message
         tag.table_id in recipient_types
       end)
@@ -401,7 +401,7 @@ defmodule Bonfire.Messages do
 
     to =
       Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
-      |> flood("tooo")
+      |> debug("tooo")
 
     context = e(message, :replied, :thread_id, nil)
     context = if context, do: Threads.ap_prepare(context)
