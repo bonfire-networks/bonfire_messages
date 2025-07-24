@@ -244,14 +244,13 @@ defmodule Bonfire.Messages do
         )
         case to_string(dm_privacy) do
           "followed_only" -> :followed_only
+          "not_followed" -> :not_followed
           _ -> :all
         end
     end
 
-    filters = base_message_filters(current_user_id, relationship_filter)
-
-    # IO.inspect({:relationship_filter, relationship_filter, :filters, filters}, label: "MESSAGE_FILTERS")
-    list_paginated(filters, current_user, opts)
+    base_message_filters(current_user_id, relationship_filter)
+    |> list_paginated(current_user, opts)
   end
 
   defp base_message_filters(current_user_id, :all) do
@@ -414,36 +413,44 @@ defmodule Bonfire.Messages do
   def filter(:messages_by_relationship, {user_id, :followed_only}, query)
       when is_binary(user_id) do
     # messages from users the current user follows
-    followed_user_ids = 
+    # TODO: only select the object IDs in query instead of preloading a bunch of assocs when we just need the IDs
+    # FIXME: this should filter on all thread participants, not just the sender of the last message, eg for group threads, or for messages I sent to someone
+    user_ids = 
       Bonfire.Social.Graph.Follows.all_objects_by_subject(user_id)
       |> Enum.map(&id/1)
       |> filter_empty([])
-      # |> IO.inspect(label: "FOLLOWED_USER_IDS_FOR_FILTER")
+      # |> debug("FOLLOWED_USER_IDS_FOR_FILTER")
 
-    if followed_user_ids != [] do
-      # IO.inspect("Applying followed_only filter with user IDs in WHERE clause")
+    if user_ids != [] do
+      # debug("Applying followed_only filter with user IDs in WHERE clause")
       query
-      |> reusable_join(:left, [root], assoc(root, :activity), as: :activity)
-      |> where([activity: activity], activity.subject_id in ^followed_user_ids)
+      |> reusable_join(:inner, [root], assoc(root, :activity), as: :activity)
+      |> where([activity: activity], activity.subject_id in ^user_ids)
     else
-      # No followed users, return empty result
-      # IO.inspect("No followed users, returning empty result")
-      query |> where([root], false)
+      # No followed users, return unfiltered result
+      query 
     end
   end
 
   def filter(:messages_by_relationship, {user_id, :not_followed}, query)
       when is_binary(user_id) do
     # messages from users the current user doesn't follow
-    followed_user_ids = 
+    # TODO: only select the object IDs in query instead of preloading a bunch of assocs when we just need the IDs
+    # FIXME: this should filter on all thread participants, not just the sender of the last message, eg for group threads, or for messages I sent to someone
+    user_ids = 
       Bonfire.Social.Graph.Follows.all_objects_by_subject(user_id)
       |> Enum.map(&id/1)
       |> filter_empty([])
-      # |> debug("followed_user_ids for messages_by_relationship :not_followed")
+      # |> debug("user_ids for messages_by_relationship :not_followed")
 
-    query
-    |> reusable_join(:left, [root], assoc(root, :activity), as: :activity)
-    |> where([activity: activity], activity.subject_id not in ^followed_user_ids)
+    if user_ids != [] do
+      query
+      |> reusable_join(:inner, [root], assoc(root, :activity), as: :activity)
+      |> where([activity: activity], activity.subject_id not in ^user_ids)
+    else
+      # return unfiltered result
+      query 
+    end
   end
 
   def filter(:messages_by_relationship, {_user_id, _filter_type}, query) do
