@@ -235,19 +235,24 @@ defmodule Bonfire.Messages do
     opts = list_options(opts)
 
     # Use explicit relationship filter if provided, otherwise user's DM privacy setting
-    relationship_filter = case opts[:relationship_filter] do
-      filter when filter in [:all, :followed_only, :not_followed] -> filter
-      _ -> 
-        # Get user's DM privacy setting only when no explicit filter
-        dm_privacy = Bonfire.Common.Settings.get([Bonfire.Messages, :dm_privacy], "everyone", 
-          current_user: current_user
-        )
-        case to_string(dm_privacy) do
-          "followed_only" -> :followed_only
-          "not_followed" -> :not_followed
-          _ -> :all
-        end
-    end
+    relationship_filter =
+      case opts[:relationship_filter] do
+        filter when filter in [:all, :followed_only, :not_followed] ->
+          filter
+
+        _ ->
+          # Get user's DM privacy setting only when no explicit filter
+          dm_privacy =
+            Bonfire.Common.Settings.get([Bonfire.Messages, :dm_privacy], "everyone",
+              current_user: current_user
+            )
+
+          case to_string(dm_privacy) do
+            "followed_only" -> :followed_only
+            "not_followed" -> :not_followed
+            _ -> :all
+          end
+      end
 
     base_message_filters(current_user_id, relationship_filter)
     |> list_paginated(current_user, opts)
@@ -335,14 +340,18 @@ defmodule Bonfire.Messages do
     # |> debug("message_paginated_post-preloads")
     |> Activities.as_permitted_for(current_user, [:see, :read])
     |> debug("post preloads & permissions")
-    |> tap(fn query_result -> 
+    |> tap(fn query_result ->
       case query_result do
         %{edges: edges} when is_list(edges) ->
-          sender_ids = Enum.map(edges, fn %{activity: activity} -> 
-            e(activity, :subject_id, "NO_SUBJECT_ID") 
-          end)
+          sender_ids =
+            Enum.map(edges, fn %{activity: activity} ->
+              e(activity, :subject_id, "NO_SUBJECT_ID")
+            end)
+
           IO.inspect(sender_ids, label: "ACTUAL_MESSAGE_SENDER_IDS")
-        _ -> :ok
+
+        _ ->
+          :ok
       end
     end)
     # |> repo().many() # return all items
@@ -413,13 +422,14 @@ defmodule Bonfire.Messages do
   def filter(:messages_by_relationship, {current_user_id, :followed_only}, query)
       when is_binary(current_user_id) do
     # messages from users the current user follows
-    # TODO: only select the object IDs in query instead of preloading a bunch of assocs when we just need the IDs
+    #  TODO: only select the object IDs in query instead of preloading a bunch of assocs when we just need the IDs
     # FIXME: this should filter on all thread participants, not just the sender of the last message, eg for group threads, or for messages I sent to someone
-    user_ids = 
+    user_ids =
       Bonfire.Social.Graph.Follows.all_objects_by_subject(current_user_id)
       |> Enum.map(&id/1)
       |> filter_empty([])
-      # |> debug("FOLLOWED_USER_IDS_FOR_FILTER")
+
+    # |> debug("FOLLOWED_USER_IDS_FOR_FILTER")
 
     if user_ids != [] do
       # debug("Applying followed_only filter with user IDs in WHERE clause")
@@ -428,20 +438,21 @@ defmodule Bonfire.Messages do
       |> where([activity: activity], activity.subject_id in ^(user_ids ++ [current_user_id]))
     else
       # No followed users, return unfiltered result
-      query 
+      query
     end
   end
 
   def filter(:messages_by_relationship, {current_user_id, :not_followed}, query)
       when is_binary(current_user_id) do
     # messages from users the current user doesn't follow
-    # TODO: only select the object IDs in query instead of preloading a bunch of assocs when we just need the IDs
+    #  TODO: only select the object IDs in query instead of preloading a bunch of assocs when we just need the IDs
     # FIXME: this should filter on all thread participants, not just the sender of the last message, eg for group threads, or for messages I sent to someone
-    user_ids = 
+    user_ids =
       Bonfire.Social.Graph.Follows.all_objects_by_subject(current_user_id)
       |> Enum.map(&id/1)
       |> filter_empty([])
-      # |> debug("user_ids for messages_by_relationship :not_followed")
+
+    # |> debug("user_ids for messages_by_relationship :not_followed")
 
     if user_ids != [] do
       query
@@ -449,7 +460,7 @@ defmodule Bonfire.Messages do
       |> where([activity: activity], activity.subject_id not in ^(user_ids ++ [current_user_id]))
     else
       # return unfiltered result
-      query 
+      query
     end
   end
 
