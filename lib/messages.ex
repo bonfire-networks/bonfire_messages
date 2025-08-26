@@ -204,8 +204,7 @@ defmodule Bonfire.Messages do
   def list(current_user, with_user \\ nil, opts \\ [])
 
   def list(%{id: current_user_id} = current_user, with_user, opts)
-      when (is_binary(with_user) or is_list(with_user) or is_map(with_user)) and
-             with_user != current_user_id and with_user != current_user do
+      when is_binary(with_user) or is_list(with_user) or is_map(with_user) do
     # all messages between two people
 
     opts = list_options(opts)
