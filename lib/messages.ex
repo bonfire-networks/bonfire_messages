@@ -187,7 +187,7 @@ defmodule Bonfire.Messages do
     # load audience list
     # ~> repo().maybe_preload(activity: [tags: [:character, profile: :icon]])
     ~> Objects.maybe_preload_activity_object(opts)
-    ~> to_ok()
+    |> ok()
   end
 
   @doc """
