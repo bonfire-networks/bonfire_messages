@@ -492,32 +492,8 @@ defmodule Bonfire.Messages do
       # |> Activities.object_preload_create_activity()
       |> debug("message to federate")
 
-    {:ok, actor} = ActivityPub.Actor.get_cached(pointer: subject)
-
-    # debug(message.activity.tags)
-
-    # TODO: extensible
-    recipient_types = [Bonfire.Data.Identity.User.__pointers__(:table_id)]
-
-    recipients =
-      Enum.filter(e(message, :tags, []) |> debug("taggs"), fn tag ->
-        # FIXME: this means that any tagged user will receive the message, which may be a problem if the UI allows @ mentioning or otherwise tagging users for messages without the intention of sending them a message
-        tag.table_id in recipient_types
-      end)
-      |> Enum.map(fn pointer ->
-        ActivityPub.Actor.get_cached!(pointer: pointer)
-      end)
-      |> filter_empty([])
-
-    to =
-      Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
-      |> debug("tooo")
-
-    context = e(message, :replied, :thread_id, nil)
-    context = if context, do: Threads.ap_prepare(context)
-
-    reply_to = e(message, :replied, :reply_to_id, nil)
-    reply_to = if reply_to, do: Threads.ap_prepare(reply_to)
+    %{actor: actor, context: context, to: to, reply_to: reply_to, recipients: recipients} =
+      ap_publish_prepare_metadata(subject, verb, message)
 
     # object = %{
     #   # "ChatMessage", # TODO: use ChatMessage with peers that support it?
@@ -528,7 +504,7 @@ defmodule Bonfire.Messages do
     #   "content" => Text.maybe_markdown_to_html(e(message, :post_content, :html_body, nil)),
     #   "to" => to,
     #   "context" => context,
-    #   "inReplyTo" => Threads.ap_prepare(uid(e(message, :replied, :reply_to_id, nil))),
+    #   "inReplyTo" => reply_to,
     #   "tag" =>
     #     Enum.map(recipients, fn actor ->
     #       %{
@@ -560,6 +536,35 @@ defmodule Bonfire.Messages do
     }
 
     if verb == :edit, do: ActivityPub.update(params), else: ActivityPub.create(params)
+  end
+
+  def ap_publish_prepare_metadata(subject, _verb, message) do
+    # TODO: extensible
+    recipient_types = [Bonfire.Data.Identity.User.__pointers__(:table_id)]
+
+    recipients =
+      Enum.filter(e(message, :tags, []) |> debug("taggs"), fn tag ->
+        # FIXME: this means that any tagged user will receive the message, which may be a problem if the UI allows @ mentioning or otherwise tagging users for messages without the intention of sending them a message
+        tag.table_id in recipient_types
+      end)
+      |> Enum.map(fn pointer ->
+        ActivityPub.Actor.get_cached!(pointer: pointer)
+      end)
+      |> filter_empty([])
+
+    to =
+      Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
+      |> debug("tooo")
+
+    context = e(message, :replied, :thread, nil) || e(message, :replied, :thread_id, nil)
+    context = if context, do: Threads.ap_prepare(context)
+
+    reply_to = e(message, :replied, :reply_to, nil) || e(message, :replied, :reply_to_id, nil)
+    reply_to = if reply_to, do: Threads.ap_prepare(reply_to)
+
+    {:ok, actor} = ActivityPub.Actor.get_cached(pointer: subject)
+
+    %{actor: actor, context: context, to: to, reply_to: reply_to, recipients: recipients}
   end
 
   # @doc """
