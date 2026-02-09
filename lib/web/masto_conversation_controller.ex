@@ -9,5 +9,7 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
     def index(conn, params), do: Adapter.conversations(params, conn)
 
     def mark_read(conn, params), do: Adapter.mark_conversation_read(params, conn)
+
+    def delete(conn, params), do: Adapter.delete_conversation(params, conn)
   end
 end

@@ -10,19 +10,7 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
     alias Bonfire.API.MastoCompat.Mappers
     alias Bonfire.API.MastoCompat.PaginationHelpers
 
-    # ==========================================
-    # Conversations API (DM threads)
-    # ==========================================
-
-    @doc """
-    List conversations (DM threads) for the current user.
-
-    Returns a list of Mastodon-compatible Conversation objects with:
-    - id: thread ID
-    - accounts: participants
-    - unread: whether there are unseen messages
-    - last_status: the most recent message
-    """
+    @doc "List conversations (DM threads) for the current user."
     def conversations(params, conn) do
       current_user = conn.assigns[:current_user]
 
@@ -35,11 +23,6 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
           Keyword.merge(pagination_opts,
             current_user: current_user,
             latest_in_threads: true,
-            # Preloads needed for Conversation/Status mappers:
-            # - :with_object_more loads post_content and replied
-            # - :with_subject loads activity.subject (sender) for account
-            # - :with_seen for unread tracking
-            # - :tags for participants
             preload: [:with_object_more, :with_subject, :with_seen, :tags]
           )
 
@@ -64,22 +47,15 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
       end
     end
 
-    @doc """
-    Mark a conversation as read.
-
-    Marks all messages in the thread as seen by the current user.
-    Returns the updated conversation object.
-    """
+    @doc "Mark a conversation as read and return updated conversation."
     def mark_conversation_read(%{"id" => thread_id}, conn) do
       current_user = conn.assigns[:current_user]
 
       if is_nil(current_user) do
         RestAdapter.error_fn({:error, :unauthorized}, conn)
       else
-        # Mark the thread as seen
         case Bonfire.Social.Seen.mark_seen(current_user, thread_id, current_user: current_user) do
           {:ok, _} ->
-            # Return the updated conversation
             get_single_conversation(thread_id, current_user, conn)
 
           {:error, reason} ->
@@ -92,9 +68,27 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
       end
     end
 
-    # Get a single conversation by thread ID
+    @doc "Hide a conversation from the user's list (removes from inbox, not actual messages)."
+    def delete_conversation(%{"id" => thread_id}, conn) do
+      current_user = conn.assigns[:current_user]
+
+      if is_nil(current_user) do
+        RestAdapter.error_fn({:error, :unauthorized}, conn)
+      else
+        inbox_feed_id = Bonfire.Social.Feeds.feed_id(:inbox, current_user)
+
+        if inbox_feed_id do
+          Bonfire.Social.FeedActivities.delete(
+            feed_id: inbox_feed_id,
+            object_id: thread_id
+          )
+        end
+
+        RestAdapter.json(conn, %{})
+      end
+    end
+
     defp get_single_conversation(thread_id, current_user, conn) do
-      # Try to load the thread's latest message
       opts = [
         current_user: current_user,
         preload: [:with_object_more, :with_subject, :with_seen, :tags]
@@ -119,7 +113,6 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
       end
     end
 
-    # Build pagination opts for conversations query
     defp build_conversation_pagination_opts(params) do
       limit = PaginationHelpers.validate_limit(params["limit"] || params[:limit])
       PaginationHelpers.build_pagination_opts(params, limit)
