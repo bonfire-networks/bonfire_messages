@@ -96,7 +96,11 @@ defmodule Bonfire.Messages do
 
         maybe_index_message(message, context)
 
-        Social.maybe_federate_and_gift_wrap_activity(creator, message)
+        Social.maybe_federate_and_gift_wrap_activity(
+          creator,
+          message,
+          opts
+        )
       end
     else
       error("Could not find recipient.")
@@ -150,6 +154,12 @@ defmodule Bonfire.Messages do
     attrs
     # |> debug("attrs")
     |> Message.changeset(%Message{}, ...)
+    # optionally set a specific ID (e.g. from C2S ActivityPub pointer)
+    |> then(fn cs ->
+      if is_binary(attrs[:id]),
+        do: Ecto.Changeset.put_change(cs, :id, attrs[:id]),
+        else: cs
+    end)
     # before  since we only want to tag `to` users, not mentions
     |> Tags.maybe_cast(attrs, creator, opts)
     # process text (must be done before Objects.cast)
