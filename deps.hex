@@ -1,5 +1,4 @@
 faker = "~> 0.14" # fake data generation
-= "~> 0.3"
 jason = "~> 1.0"
 
 "~> 0.4"
