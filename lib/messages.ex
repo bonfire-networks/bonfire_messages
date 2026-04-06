@@ -344,25 +344,21 @@ defmodule Bonfire.Messages do
     # add assocs needed in timelines/feeds
     # |> proload([:activity])
     # |> debug("pre-preloads")
+    |> Activities.as_permitted_for(current_user, [:see, :read])
     |> Activities.activity_preloads(opts)
     |> query_filter(filters)
     # |> debug("message_paginated_post-preloads")
-    |> Activities.as_permitted_for(current_user, [:see, :read])
     |> debug("post preloads & permissions")
-    |> tap(fn query_result ->
-      case query_result do
-        %{edges: edges} when is_list(edges) ->
-          sender_ids =
-            Enum.map(edges, fn %{activity: activity} ->
-              e(activity, :subject_id, "NO_SUBJECT_ID")
-            end)
-
-          IO.inspect(sender_ids, label: "ACTUAL_MESSAGE_SENDER_IDS")
-
-        _ ->
-          :ok
-      end
-    end)
+    # |> tap(fn query_result -> # what's this?
+    #   case query_result do
+    #     %{edges: edges} when is_list(edges) ->
+    #         Enum.map(edges, fn %{activity: activity} ->
+    #           e(activity, :subject_id, "NO_SUBJECT_ID")
+    #         end)
+    #     _ ->
+    #       :ok
+    #   end
+    # end)
     # |> repo().many() # return all items
     # return a page of items (reverse chronological) + pagination metadata
     |> Social.many(opts[:paginate], opts)
