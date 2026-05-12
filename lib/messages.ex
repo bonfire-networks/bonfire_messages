@@ -22,7 +22,7 @@ defmodule Bonfire.Messages do
   alias Bonfire.Social.Tags
 
   # alias Bonfire.Boundaries.Verbs
-  # import Bonfire.Boundaries.Queries
+  import Bonfire.Boundaries.Queries
   alias Bonfire.Boundaries
   # alias Bzonfire.Boundaries.Verbs
 
@@ -361,7 +361,7 @@ defmodule Bonfire.Messages do
     # end)
     # |> repo().many() # return all items
     # return a page of items (reverse chronological) + pagination metadata
-    |> Social.many(opts[:paginate], opts)
+    |> repo().many_maybe_paginated(opts[:paginate], opts)
 
     # |> debug("result")
   end
@@ -372,56 +372,51 @@ defmodule Bonfire.Messages do
          opts,
          query
        ) do
-    # paginate = if opts[:paginate], do: Keyword.new(opts[:paginate]), else: opts
+    # inner: DISTINCT ON (thread_id), IDs only, cursor-paginated with multiplied limit — no boundary check
+    inner =
+      query
+      |> query_filter(filters ++ [distinct: {:threads, &Threads.filter/3}])
+      |> repo().build_deferred_inner_subquery([], opts)
 
-    # opts = opts
-    # |> Keyword.put(:paginate, paginate
-    #                           |> Keyword.put(:cursor_fields, [{:thread_id, :desc}])
-    #   )
-    # debug(opts)
-
-    filters = filters ++ [distinct: {:threads, &Threads.filter/3}]
-
+    # outer: join back to the small window, apply boundary check on those rows only.
+    # We boundarise on deferred_join_subquery.id rather than activity.object_id because
+    # for messages, message.id == activity.id == activity.object_id (same Needle pointer),
+    # avoiding an extra :activity join that would break parent_as(:activity) in the EXISTS subquery.
     query
-    # add assocs needed in timelines/feeds
-    # |> proload([:activity])
-    # |> debug("pre-preloads")
-    # |> Activities.activity_preloads(opts)
-    |> query_filter(filters)
-    # |> debug("message_paginated_post-preloads")
-    |> Activities.as_permitted_for(current_user, [:see, :read])
-    |> Threads.re_order_using_subquery(opts)
-    # |> debug("post preloads & permissions")
-    # |> repo().many() # return all items
-    # return a page of items (reverse chronological) + pagination metadata
+    |> join(:inner, [root], s in ^inner, on: s.id == root.id, as: :deferred_join_subquery)
+    |> boundarise(deferred_join_subquery.id, current_user: current_user, verbs: [:see, :read])
     |> repo().many_paginated(opts)
-    # Threads query - activity preloads happen after pagination
-    # |> Threads.maybe_re_order_result(opts)
     |> Activities.activity_preloads(opts)
-
-    # |> debug("result")
   end
 
-  def filter(:messages_involving, {user_id, _current_user_id}, query)
-      when is_binary(user_id) do
-    # messages between current user & someone else
-
+  def filter(:messages_involving, {other_user_id, current_user_id}, query)
+      when is_binary(other_user_id) and is_binary(current_user_id) do
+    # conversation between two specific users — must involve both
     query
-    |> reusable_join(:left, [root], assoc(root, :activity), as: :activity)
-    |> reusable_join(:left, [activity: activity], assoc(activity, :tagged), as: :tagged)
+    |> with_activity_and_tagged_joins()
     |> where(
       [activity: activity, tagged: tagged],
-      # and activity.subject_id == ^current_user_id # shouldn't be needed if boundaries does the filtering
-      tagged.tag_id == ^user_id or activity.subject_id == ^user_id
-
-      # and tags.id == ^current_user_id # shouldn't be needed if boundaries does the filtering
+      (activity.subject_id == ^other_user_id or tagged.tag_id == ^other_user_id) and
+        (activity.subject_id == ^current_user_id or tagged.tag_id == ^current_user_id)
     )
   end
 
-  def filter(:messages_involving, _user_id, query) do
-    # current_user's messages
-    # relies only on boundaries to filter which messages to show so no other filtering needed
+  def filter(:messages_involving, current_user_id, query) when is_binary(current_user_id) do
+    # inbox: messages sent by or tagged to current_user
     query
+    |> with_activity_and_tagged_joins()
+    |> where(
+      [activity: activity, tagged: tagged],
+      activity.subject_id == ^current_user_id or tagged.tag_id == ^current_user_id
+    )
+  end
+
+  def filter(:messages_involving, _user_id, query), do: query
+
+  defp with_activity_and_tagged_joins(query) do
+    query
+    |> reusable_join(:left, [root], assoc(root, :activity), as: :activity)
+    |> reusable_join(:left, [activity: activity], assoc(activity, :tagged), as: :tagged)
   end
 
   def filter(:messages_by_relationship, {current_user_id, :followed_only}, query)

@@ -32,6 +32,9 @@ defmodule Bonfire.Messages.MessagesTest do
     assert {:ok, message} = Messages.send(sender, attrs)
     assert %{edges: [fp]} = Messages.list(sender)
     assert fp.id == message.id
+    # also via thread view (latest_in_threads path)
+    assert %{edges: [fp2]} = Messages.list(sender, nil, latest_in_threads: true)
+    assert fp2.id == message.id
   end
 
   test "can list messages I sent to a specific person" do
@@ -52,6 +55,9 @@ defmodule Bonfire.Messages.MessagesTest do
     assert %{edges: feed} = Messages.list(receiver)
     assert m = List.first(feed)
     assert m.id == message.id
+    # also via thread view (latest_in_threads path)
+    assert %{edges: feed2} = Messages.list(receiver, nil, latest_in_threads: true)
+    assert List.first(feed2).id == message.id
   end
 
   test "can list messages sent to me by a specific person" do
@@ -65,6 +71,9 @@ defmodule Bonfire.Messages.MessagesTest do
     assert %{edges: feed} = Messages.list(receiver, sender)
     assert m = List.first(feed)
     assert m.id == message.id
+    # also via thread view (latest_in_threads path)
+    assert %{edges: feed2} = Messages.list(receiver, sender, latest_in_threads: true)
+    assert List.first(feed2).id == message.id
   end
 
   test "can read a message I send, or sent to me" do
@@ -93,6 +102,8 @@ defmodule Bonfire.Messages.MessagesTest do
     refute match?(%{edges: [_]}, Messages.list(other))
     refute match?(%{edges: [_]}, Messages.list(sender, other))
     refute match?(%{edges: [_]}, Messages.list(other, sender))
+    # also via thread view (latest_in_threads path)
+    refute match?(%{edges: [_]}, Messages.list(other, nil, latest_in_threads: true))
   end
 
   test "random person CANNOT read a message I sent to another person" do
