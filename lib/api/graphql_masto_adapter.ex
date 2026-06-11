@@ -114,7 +114,8 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
     end
 
     defp build_conversation_pagination_opts(params) do
-      limit = PaginationHelpers.validate_limit(params["limit"] || params[:limit])
+      # Mastodon conversations cap at 40
+      limit = PaginationHelpers.validate_limit(params["limit"] || params[:limit], max: 40)
       PaginationHelpers.build_pagination_opts(params, limit)
     end
   end
