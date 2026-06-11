@@ -544,18 +544,13 @@ defmodule Bonfire.Messages do
     recipient_types = [Bonfire.Data.Identity.User.__pointers__(:table_id)]
 
     recipients =
-      Enum.filter(e(message, :tags, []) |> debug("taggs"), fn tag ->
+      Enum.filter(e(message, :tags, []), fn tag ->
         # FIXME: this means that any tagged user will receive the message, which may be a problem if the UI allows @ mentioning or otherwise tagging users for messages without the intention of sending them a message
         tag.table_id in recipient_types
       end)
-      |> Enum.map(fn pointer ->
-        ActivityPub.Actor.get_cached!(pointer: pointer)
-      end)
-      |> filter_empty([])
+      |> ActivityPub.Actor.list_cached()
 
-    to =
-      Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
-      |> debug("tooo")
+    to = Enum.map(recipients, fn %{ap_id: ap_id} -> ap_id end)
 
     context = e(message, :replied, :thread, nil) || e(message, :replied, :thread_id, nil)
     context = if context, do: Threads.ap_prepare(context)
