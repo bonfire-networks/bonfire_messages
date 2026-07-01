@@ -5,7 +5,7 @@ defmodule Bonfire.Messages.Integration do
   # alias Bonfire.Data.Social.Follow
   # import Untangle
 
-  declare_extension("Messages",
+  declare_extension(l("Messages"),
     icon: "carbon:email",
     emoji: "✉️",
     description: l("Functionality for writing and reading private messages.")
