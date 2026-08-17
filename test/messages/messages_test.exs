@@ -11,6 +11,8 @@ defmodule Bonfire.Messages.MessagesTest do
 
   @plain_body "hey receiver, you have an epic text message"
   @html_body "<p>hey receiver, you have an epic html message</p>"
+  @link_url "https://example.com/some-page"
+  @body_with_link "check out #{@link_url} please"
 
   test "can message a user" do
     sender = Fake.fake_user!()
@@ -189,5 +191,77 @@ defmodule Bonfire.Messages.MessagesTest do
     attrs = %{to_circles: [receiver.id], post_content: %{html_body: @html_body}}
     assert {:ok, message} = Messages.send(sender, attrs)
     refute Bonfire.Social.FeedLoader.feed_contains?(:local, message)
+  end
+
+  describe "links in messages" do
+    # renders stored content the same way `Bonfire.UI.Social.Activity.HtmlBodyLive` does
+    defp as_rendered(html_body) do
+      Bonfire.UI.Common.rich(html_body, sanitize: true)
+      |> Phoenix.HTML.safe_to_string()
+    end
+
+    test "a URL in a sent message is linkified and recorded" do
+      sender = Fake.fake_user!()
+      receiver = Fake.fake_user!()
+
+      attrs = %{
+        to_circles: [receiver.id],
+        post_content: %{html_body: @body_with_link}
+      }
+
+      assert {:ok, message} = Messages.send(sender, attrs)
+
+      assert @link_url in (message.post_content.urls || [])
+      assert as_rendered(message.post_content.html_body) =~ "href=\"#{@link_url}\""
+    end
+  end
+
+  describe "mentions & hashtags in messages (must stay excluded)" do
+    defp tag_ids(message), do: repo().maybe_preload(message, :tags) |> e(:tags, []) |> Enums.ids()
+
+    test "@mentioning a third party in a message does not tag, notify, or expose it to them" do
+      sender = Fake.fake_user!()
+      receiver = Fake.fake_user!()
+      bystander = Fake.fake_user!()
+
+      attrs = %{
+        to_circles: [receiver.id],
+        post_content: %{
+          html_body: "hey @#{bystander.character.username} #{@body_with_link}"
+        }
+      }
+
+      assert {:ok, message} = Messages.send(sender, attrs)
+
+      tag_ids = tag_ids(message)
+      assert receiver.id in tag_ids, "the recipient should be tagged"
+      refute bystander.id in tag_ids, "a mentioned bystander should NOT be tagged"
+
+      assert (message.post_content.mentions || []) == []
+
+      refute Bonfire.Social.FeedLoader.feed_contains?(:notifications, message,
+               current_user: bystander
+             )
+
+      assert {:error, _} = Messages.read(message.id, current_user: bystander)
+    end
+
+    test "a #hashtag in a message is not tagged" do
+      sender = Fake.fake_user!()
+      receiver = Fake.fake_user!()
+      hashtag = "notatag#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        to_circles: [receiver.id],
+        post_content: %{html_body: "psst #{@body_with_link} ##{hashtag}"}
+      }
+
+      assert {:ok, message} = Messages.send(sender, attrs)
+
+      assert [receiver.id] == tag_ids(message)
+
+      assert (message.post_content.hashtags || []) == []
+      assert {:error, _} = Bonfire.Tag.get_hashtag(hashtag)
+    end
   end
 end

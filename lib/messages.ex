@@ -162,8 +162,13 @@ defmodule Bonfire.Messages do
     end)
     # before  since we only want to tag `to` users, not mentions
     |> Tags.maybe_cast(attrs, creator, opts)
-    # process text (must be done before Objects.cast)
-    |> PostContents.cast(attrs, creator, "message", opts)
+    # process text (must be done before Objects.cast). Links should be clickable, but mentions and hashtags must not be parsed: that would notify or expose the message to third parties, and create Hashtag objects out of private text
+    |> PostContents.cast(
+      attrs,
+      creator,
+      "message",
+      Keyword.merge(opts, mention: false, hashtag: false)
+    )
     |> maybe_spam_check(attrs, opts)
     |> Objects.cast_creator_caretaker(creator)
     # record replies & threads. preloads data that will be checked by `Acls`
