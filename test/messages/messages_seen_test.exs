@@ -13,7 +13,7 @@ defmodule Bonfire.Messages.MessagesSeenTest do
       to thread-modal-open) achieves the same outcome end-to-end —
       despite the user_id vs account_id asymmetry between
       `Threads.unseen_query` (joins by user_id) and `Seen.mark_seen`
-      (writes by account_id via `normalize_subject`)
+      (writes by account_id via `normalize_subject!`)
   """
 
   use Bonfire.Messages.DataCase, async: true

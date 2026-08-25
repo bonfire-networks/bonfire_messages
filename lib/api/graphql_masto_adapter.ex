@@ -54,7 +54,7 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
       if is_nil(current_user) do
         RestAdapter.error_fn({:error, :unauthorized}, conn)
       else
-        case Bonfire.Social.Seen.mark_seen(current_user, thread_id, current_user: current_user) do
+        case Bonfire.Social.Seen.mark_seen(conn.assigns, thread_id) do
           {:ok, _} ->
             get_single_conversation(thread_id, current_user, conn)
 
