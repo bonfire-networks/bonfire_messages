@@ -531,6 +531,7 @@ defmodule Bonfire.Messages do
         context,
         reply_to
       )
+      |> Bonfire.Files.ap_merge_media(e(message, :media, nil))
       |> Map.put("to", to)
 
     params = %{
