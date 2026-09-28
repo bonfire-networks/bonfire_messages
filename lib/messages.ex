@@ -65,7 +65,7 @@ defmodule Bonfire.Messages do
       |> debug("tos")
       |> clean_tos()
       |> debug("clean_tos")
-      |> Boundaries.load_pointers(current_user: creator, verb: :message)
+      |> Boundaries.load_pointers(current_user: creator, verbs: [:message])
       |> repo().maybe_preload(:character)
 
     # TODO: if not allowed to message, request to message?
