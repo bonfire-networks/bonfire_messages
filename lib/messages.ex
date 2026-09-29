@@ -247,64 +247,73 @@ defmodule Bonfire.Messages do
 
     opts = list_options(opts)
 
-    # Use explicit relationship filter if provided, otherwise user's DM privacy setting
-    relationship_filter =
-      case opts[:relationship_filter] do
-        filter when filter in [:all, :followed_only, :not_followed] ->
-          filter
+    # replaced by the "Hide notifications and messages from" switches, which notifications share, so `dm_privacy` and the relationship tabs are no longer read
+    # # Use explicit relationship filter if provided, otherwise user's DM privacy setting
+    # relationship_filter =
+    #   case opts[:relationship_filter] do
+    #     filter when filter in [:all, :followed_only, :not_followed] ->
+    #       filter
+    #
+    #     _ ->
+    #       # Get user's DM privacy setting only when no explicit filter
+    #       dm_privacy =
+    #         Bonfire.Common.Settings.get([Bonfire.Messages, :dm_privacy], "everyone",
+    #           current_user: current_user
+    #         )
+    #
+    #       case to_string(dm_privacy) do
+    #         "followed_only" -> :followed_only
+    #         "not_followed" -> :not_followed
+    #         _ -> :all
+    #       end
+    #   end
+    #
+    # base_message_filters(current_user_id, relationship_filter)
+    # |> list_paginated(current_user, opts)
 
-        _ ->
-          # Get user's DM privacy setting only when no explicit filter
-          dm_privacy =
-            Bonfire.Common.Settings.get([Bonfire.Messages, :dm_privacy], "everyone",
-              current_user: current_user
-            )
-
-          case to_string(dm_privacy) do
-            "followed_only" -> :followed_only
-            "not_followed" -> :not_followed
-            _ -> :all
-          end
-      end
-
-    base_message_filters(current_user_id, relationship_filter)
+    [
+      {:messages_involving, {current_user_id, &filter/3}},
+      # what the switches leave out, or with `hidden: true` only that (the Hidden tab)
+      {:hidden_audiences, {{current_user, opts[:hidden] == true}, &filter/3}}
+    ]
     |> list_paginated(current_user, opts)
   end
 
-  defp base_message_filters(current_user_id, :all) do
-    [
-      {
-        :messages_involving,
-        {current_user_id, &filter/3}
-      }
-    ]
-  end
-
-  defp base_message_filters(current_user_id, :followed_only) do
-    [
-      {
-        :messages_involving,
-        {current_user_id, &filter/3}
-      },
-      {
-        :messages_by_relationship,
-        {{current_user_id, :followed_only}, &filter/3}
-      }
-    ]
-  end
-
-  defp base_message_filters(current_user_id, :not_followed) do
-    [
-      {
-        :messages_involving,
-        {current_user_id, &filter/3}
-      },
-      {
-        :messages_by_relationship,
-        {{current_user_id, :not_followed}, &filter/3}
-      }
-    ]
-  end
+  # unused since the audience switches replaced `dm_privacy` and the relationship tabs (see `list/3`)
+  # defp base_message_filters(current_user_id, :all) do
+  #   [
+  #     {
+  #       :messages_involving,
+  #       {current_user_id, &filter/3}
+  #     }
+  #   ]
+  # end
+  #
+  # defp base_message_filters(current_user_id, :followed_only) do
+  #   [
+  #     {
+  #       :messages_involving,
+  #       {current_user_id, &filter/3}
+  #     },
+  #     {
+  #       :messages_by_relationship,
+  #       {{current_user_id, :followed_only}, &filter/3}
+  #     }
+  #   ]
+  # end
+  #
+  # defp base_message_filters(current_user_id, :not_followed) do
+  #   [
+  #     {
+  #       :messages_involving,
+  #       {current_user_id, &filter/3}
+  #     },
+  #     {
+  #       :messages_by_relationship,
+  #       {{current_user_id, :not_followed}, &filter/3}
+  #     }
+  #   ]
+  # end
 
   def list(_current_user, _with_user, _cursor_before, _preloads), do: []
 
@@ -471,6 +480,35 @@ defmodule Bonfire.Messages do
   def filter(:messages_by_relationship, {_user_id, _filter_type}, query) do
     # fallback for unknown filter types
     query
+  end
+
+  # the reader's hidden audiences, as the same conditions the notifications feed and delivery hide by, judged per message by its sender. What the reader sent is never from an audience they hide
+  def filter(:hidden_audiences, {current_user, hidden?}, query) do
+    case Bonfire.Social.Notifications.hidden_audiences(current_user: current_user) do
+      [] ->
+        if hidden?, do: where(query, false), else: query
+
+      keys ->
+        from_hidden =
+          Enum.reduce(keys, dynamic(false), fn key, any ->
+            dynamic(
+              ^any or
+                ^Bonfire.Social.Notifications.audience_condition(key, current_user: current_user)
+            )
+          end)
+
+        me = id(current_user)
+
+        # one dynamic, since Ecto only takes one at the top level of a `where`
+        condition =
+          if hidden?,
+            do: dynamic([activity: activity], activity.subject_id != ^me and ^from_hidden),
+            else: dynamic([activity: activity], activity.subject_id == ^me or not (^from_hidden))
+
+        query
+        |> with_activity_and_tagged_joins()
+        |> where(^condition)
+    end
   end
 
   @doc """
