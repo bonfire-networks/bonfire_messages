@@ -59,9 +59,13 @@ defmodule Bonfire.Messages do
   def send(context, attrs, to) do
     creator = current_user_required!(context)
 
+    # `{subject, verbs: …}` entries (eg. an incoming message's `interactionPolicy`) grant or deny single verbs, so they're kept out of the recipients
+    {verb_grants, to} =
+      Bonfire.Boundaries.VerbGrants.split_from_circles(to || e(attrs, :to_circles, nil), creator)
+
     #   TODO: check boundaries, right now anyone can message anyone :/
     to =
-      (to || e(attrs, :to_circles, nil))
+      to
       |> debug("tos")
       |> clean_tos()
       |> debug("clean_tos")
@@ -80,6 +84,7 @@ defmodule Bonfire.Messages do
             boundary: "message",
             verbs_to_grant: Config.get([:verbs_to_grant, :message]),
             to_circles: to || [],
+            verb_grants: verb_grants,
             to_feeds: [inbox: to]
           ]
 
