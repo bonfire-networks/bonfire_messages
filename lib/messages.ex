@@ -62,8 +62,11 @@ defmodule Bonfire.Messages do
     # `{subject, verbs: …}` entries (eg. an incoming message's `interactionPolicy`) grant or deny single verbs, so they're kept out of the recipients, and passed on in `to_circles`, where `Acls.prepare_cast/3` takes them as such
     {verb_entries, to} =
       case to || e(attrs, :to_circles, nil) do
-        tos when is_list(tos) -> Enum.split_with(tos, &Bonfire.Boundaries.VerbGrants.verbs_entry?/1)
-        tos -> {[], tos}
+        tos when is_list(tos) ->
+          Enum.split_with(tos, &Bonfire.Boundaries.VerbGrants.verbs_entry?/1)
+
+        tos ->
+          {[], tos}
       end
 
     #   TODO: check boundaries, right now anyone can message anyone :/
