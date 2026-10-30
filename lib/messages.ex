@@ -69,7 +69,7 @@ defmodule Bonfire.Messages do
           {[], tos}
       end
 
-    #   TODO: check boundaries, right now anyone can message anyone :/
+    # recipients the sender may not message (the `:message` verb) are dropped by `load_pointers`, and a send left with none fails
     to =
       to
       |> debug("tos")
@@ -81,38 +81,66 @@ defmodule Bonfire.Messages do
     # TODO: if not allowed to message, request to message?
     # |> debug("to pointers")
 
-    if is_list(to) and to != [] do
-      attrs = Map.put(attrs, :tags, to)
-      # |> debug("message attrs")
-      opts =
-        to_options(context) ++
-          [
-            boundary: "message",
-            verbs_to_grant: Config.get([:verbs_to_grant, :message]),
-            to_circles: (to || []) ++ verb_entries,
-            to_feeds: [inbox: to]
-          ]
+    cond do
+      is_list(to) and to != [] and
+          maybe_apply(
+            Bonfire.Federate.ActivityPub.AdapterUtils,
+            :service_character_among?,
+            [to],
+            fallback_return: false
+          ) ->
+        send_as_private_mention(creator, attrs, to)
 
-      # TODO: refactor to use Epics  
+      is_list(to) and to != [] ->
+        send_message(context, creator, attrs, to, verb_entries)
 
-      with {:ok, message} <- create(attrs, opts) do
-        # debug(message)
-        maybe_apply(Bonfire.Social.LivePush, :emit_live_message, [
-          creator,
-          message,
-          to
-        ])
+      true ->
+        error("Could not find recipient.")
+    end
+  end
 
-        maybe_index_message(message, context)
+  # A message to the instance's federation bot is for the people who can moderate the instance. A message names its recipients, so they would be named to the sender and to each other, and a reply would show them. It is a private post that mentions the bot instead, which they are given read access to (`Bonfire.Boundaries.Acls.mentions_grants/3`) without being tagged on it.
+  defp send_as_private_mention(creator, attrs, to) do
+    # `mentions` is read from the post's attributes (`PostContents.parse_and_prepare_contents/3`), alongside those found in the text
+    attrs =
+      attrs
+      |> Map.drop([:to_circles, :tags])
+      |> Map.put(:mentions, to)
 
-        Social.maybe_federate_and_gift_wrap_activity(
-          creator,
-          message,
-          opts
-        )
-      end
-    else
-      error("Could not find recipient.")
+    maybe_apply(Bonfire.Posts, :publish, [
+      [current_user: creator, post_attrs: attrs, boundary: "mentions"]
+    ])
+  end
+
+  defp send_message(context, creator, attrs, to, verb_entries) do
+    attrs = Map.put(attrs, :tags, to)
+    # |> debug("message attrs")
+    opts =
+      to_options(context) ++
+        [
+          boundary: "message",
+          verbs_to_grant: Config.get([:verbs_to_grant, :message]),
+          to_circles: (to || []) ++ verb_entries,
+          to_feeds: [inbox: to]
+        ]
+
+    # TODO: refactor to use Epics
+
+    with {:ok, message} <- create(attrs, opts) do
+      # debug(message)
+      maybe_apply(Bonfire.Social.LivePush, :emit_live_message, [
+        creator,
+        message,
+        to
+      ])
+
+      maybe_index_message(message, context)
+
+      Social.maybe_federate_and_gift_wrap_activity(
+        creator,
+        message,
+        opts
+      )
     end
   end
 
