@@ -194,7 +194,7 @@ defmodule Bonfire.Messages.MessagesTest do
   end
 
   describe "links in messages" do
-    # renders stored content the same way `Bonfire.UI.Social.Activity.HtmlBodyLive` does
+    # renders stored content the same way `Bonfire.UI.Common.HtmlBodyLive` does
     defp as_rendered(html_body) do
       Bonfire.UI.Common.rich(html_body, sanitize: true)
       |> Phoenix.HTML.safe_to_string()
