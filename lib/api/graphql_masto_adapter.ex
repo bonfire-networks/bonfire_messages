@@ -30,7 +30,7 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
           %{edges: edges, page_info: page_info} ->
             conversations =
               edges
-              |> Enum.map(&Mappers.Conversation.from_thread(&1, current_user: current_user))
+              |> Mappers.Conversation.from_threads(current_user: current_user)
               |> Enum.reject(&is_nil/1)
 
             conn
