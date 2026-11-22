@@ -9,6 +9,20 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
     alias Bonfire.API.GraphQL.RestAdapter
     alias Bonfire.API.MastoCompat.Mappers
     alias Bonfire.API.MastoCompat.PaginationHelpers
+    alias Bonfire.API.MastoCompat.{Fragments, Helpers}
+
+    @conversations_query """
+    query ($first: Int, $after: String, $before: String) {
+      my_conversations: myConversations(first: $first, after: $after, before: $before) {
+        edges { node { #{Fragments.conversation_fields()} } }
+        page_info: pageInfo { start_cursor: startCursor end_cursor: endCursor }
+      }
+    }
+    """
+
+    @conversation_query """
+    query ($id: ID!) { conversation(id: $id) { #{Fragments.conversation_fields()} } }
+    """
 
     @doc "List conversations (DM threads) for the current user."
     def conversations(params, conn) do
@@ -19,29 +33,37 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
       else
         pagination_opts = build_conversation_pagination_opts(params)
 
-        opts =
-          Keyword.merge(pagination_opts,
-            current_user: current_user,
-            latest_in_threads: true,
-            preload: [:with_object_more, :with_subject, :with_seen, :tags]
-          )
+        # Mastodon's cursors are message ids: `max_id` is `after`, `min_id` and `since_id` are `before`, as `Messages.list/3` has always taken them
+        variables =
+          %{
+            "first" => pagination_opts[:limit],
+            "after" => pagination_opts[:after],
+            "before" => pagination_opts[:before]
+          }
+          |> Map.reject(fn {_, v} -> is_nil(v) end)
 
-        case Bonfire.Messages.list(current_user, nil, opts) do
-          %{edges: edges, page_info: page_info} ->
+        case Helpers.run_query(@conversations_query, current_user, variables) do
+          # any error, even beside partial data: a field that failed would otherwise leave a conversation silently empty
+          {:ok, %{errors: [_ | _] = errors}} ->
+            RestAdapter.error_fn({:error, errors}, conn)
+
+          {:ok, %{data: %{my_conversations: %{edges: edges, page_info: page_info}}}} ->
             conversations =
               edges
-              |> Mappers.Conversation.from_threads(current_user: current_user)
+              |> Enum.map(&Mappers.Conversation.from_graphql(&1, current_user: current_user))
               |> Enum.reject(&is_nil/1)
 
+            # only the cursors: Relay's `has_next_page` is false on the last page, where the Link headers have always offered a next one
             conn
-            |> PaginationHelpers.add_simple_link_headers(params, page_info, conversations)
+            |> PaginationHelpers.add_simple_link_headers(
+              params,
+              Map.take(page_info, [:start_cursor, :end_cursor]),
+              conversations
+            )
             |> RestAdapter.json(conversations)
 
-          {:error, reason} ->
-            RestAdapter.error_fn({:error, reason}, conn)
-
           other ->
-            error(other, "Unexpected result from Messages.list")
+            error(other, "Unexpected result from my_conversations")
             RestAdapter.json(conn, [])
         end
       end
@@ -89,24 +111,15 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
     end
 
     defp get_single_conversation(thread_id, current_user, conn) do
-      opts = [
-        current_user: current_user,
-        preload: [:with_object_more, :with_subject, :with_seen, :tags]
-      ]
+      case Helpers.run_query(@conversation_query, current_user, %{"id" => thread_id}) do
+        {:ok, %{errors: [_ | _] = errors}} ->
+          RestAdapter.error_fn({:error, errors}, conn)
 
-      case Bonfire.Messages.read(thread_id, opts) do
-        {:ok, message} ->
-          conversation =
-            Mappers.Conversation.from_thread(message, current_user: current_user)
-
-          if conversation do
-            RestAdapter.json(conn, conversation)
-          else
-            RestAdapter.error_fn({:error, :not_found}, conn)
+        {:ok, %{data: %{conversation: node}}} when is_map(node) ->
+          case Mappers.Conversation.from_graphql(node, current_user: current_user) do
+            nil -> RestAdapter.error_fn({:error, :not_found}, conn)
+            conversation -> RestAdapter.json(conn, conversation)
           end
-
-        {:error, reason} ->
-          RestAdapter.error_fn({:error, reason}, conn)
 
         _ ->
           RestAdapter.error_fn({:error, :not_found}, conn)
