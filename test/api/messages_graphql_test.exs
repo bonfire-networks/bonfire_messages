@@ -58,6 +58,7 @@ if Application.compile_env(:bonfire_api_graphql, :modularity) != :disabled do
       # the latest message's id, as the Mastodon API has always answered
       assert conversation["id"] == last.id
       assert conversation["unread"] == true
+
       # `Threads.list_participants/3` order: the latest sender, the replied-to author, the recipients
       assert node_ids(conversation["participants"]) == [other.id, viewer.id, third.id]
       # read on its own, not taken from the participants
