@@ -207,6 +207,8 @@ defmodule Bonfire.Messages do
       Keyword.merge(opts, mention: false, hashtag: false)
     )
     |> maybe_spam_check(attrs, opts)
+    # the files uploaded in the composer, as a post attaches them (`Bonfire.Files.Acts.AttachMedia`)
+    |> maybe_attach_media(e(attrs, :uploaded_media, nil))
     |> Objects.cast_creator_caretaker(creator)
     # record replies & threads. preloads data that will be checked by `Acls`
     |> Threads.cast(attrs, creator, opts)
@@ -218,6 +220,14 @@ defmodule Bonfire.Messages do
 
     # |> info()
   end
+
+  defp maybe_attach_media(changeset, media) when is_list(media) and media != [] do
+    maybe_apply(Bonfire.Files.Acts.AttachMedia, :cast, [changeset, media],
+      fallback_return: changeset
+    )
+  end
+
+  defp maybe_attach_media(changeset, _), do: changeset
 
   def maybe_spam_check(changeset, attrs, context),
     do:
